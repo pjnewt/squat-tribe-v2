@@ -1,0 +1,1 @@
+function startAnchor(){document.getElementById('phase').innerText='Anchor Set Started';}
