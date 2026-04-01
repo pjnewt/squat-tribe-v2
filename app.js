@@ -1,6 +1,10 @@
+const STORAGE_KEY = "squatTribe_v2_2_history";
+
 let reps=0, running=false, timer=0, tInt;
 let anchorReps=0, anchorTime=0, myoTarget=0;
 let totalReps=0, totalTime=0;
+
+let currentPhase = "anchor"; // 🔥 KEY FIX
 
 let buffer=[], lastState="up", lastTime=0;
 
@@ -12,6 +16,7 @@ function startSession(){
 
   reps=0; timer=0; running=true;
   anchorReps=0; totalReps=0; totalTime=0;
+  currentPhase = "anchor";
 
   el('phase').innerText="ANCHOR";
   el('reps').innerText=0;
@@ -29,33 +34,53 @@ function stopSet(){
 }
 
 function saveSet(){
-  if(anchorReps===0){
-    anchorReps=reps;
-    anchorTime=timer;
-    totalReps+=reps;
-    totalTime+=timer;
 
-    myoTarget=Math.max(1, Math.round(anchorReps*0.2));
+  if(currentPhase === "anchor"){
+    if(reps <= 0){
+      el('phase').innerText="NO REPS";
+      return;
+    }
+
+    anchorReps = reps;
+    anchorTime = timer;
+
+    totalReps += reps;
+    totalTime += timer;
+
+    myoTarget = Math.max(1, Math.round(anchorReps * 0.2));
+
+    currentPhase = "myo";
 
     el('phase').innerText="REST";
+
     setTimeout(()=>{
       el('phase').innerText="MYO TARGET";
       el('target').innerText=myoTarget;
-    }, anchorTime*1000);
+    }, anchorTime * 1000);
 
   } else {
-    totalReps+=reps;
-    totalTime+=timer;
+
+    // 🔥 FIXED MYO SAVE
+    totalReps += reps;
+    totalTime += timer;
 
     el('phase').innerText="MYO REST";
-    setTimeout(()=>{ el('phase').innerText="READY"; },10000);
+
+    setTimeout(()=>{
+      el('phase').innerText="READY FOR NEXT MYO";
+    }, 10000);
   }
 }
 
 function startMyo(){
+  if(currentPhase !== "myo"){
+    el('phase').innerText="COMPLETE ANCHOR FIRST";
+    return;
+  }
+
   reps=0; timer=0; running=true;
 
-  el('phase').innerText="MYO";
+  el('phase').innerText="MYO SET";
   el('reps').innerText=0;
   el('time').innerText=0;
   el('target').innerText=myoTarget;
@@ -81,9 +106,9 @@ function finishSession(){
     TRDS: TRDS.toFixed(2)
   };
 
-  let history = JSON.parse(localStorage.getItem('history')||"[]");
+  let history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
   history.unshift(session);
-  localStorage.setItem('history', JSON.stringify(history));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 
   el('phase').innerText="SAVED";
 }
@@ -92,10 +117,11 @@ function showHistory(){
   el('home').style.display='none';
   el('history').style.display='block';
 
-  let history = JSON.parse(localStorage.getItem('history')||"[]");
+  let history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+
   let html="";
   history.forEach(h=>{
-    html+=`<div class="card">
+    html += `<div class="card">
       ${h.date}<br>
       Reps: ${h.reps}<br>
       TRDS: ${h.TRDS}
@@ -105,12 +131,18 @@ function showHistory(){
   el('historyList').innerHTML=html;
 }
 
+function clearHistory(){
+  localStorage.removeItem(STORAGE_KEY);
+  showHistory();
+}
+
 function goHome(){
   el('home').style.display='block';
   el('session').style.display='none';
   el('history').style.display='none';
 }
 
+// ✅ SENSOR (UNCHANGED - LOCKED)
 function detect(e){
   if(!running) return;
 
