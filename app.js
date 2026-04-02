@@ -1,12 +1,12 @@
-const PROFILE_KEY = "squatTribe_v23a_profile";
-const HISTORY_KEY = "squatTribe_v23a_history";
-const ROTATION_KEY = "squatTribe_v23a_rotation";
+const PROFILE_KEY = "squatTribe_v23b_profile";
+const HISTORY_KEY = "squatTribe_v23b_history";
+const ROTATION_KEY = "squatTribe_v23b_rotation";
 
 const EXERCISES = [
   { key: "back", name: "Back Squat", type: "bilateral", coeff: 0.70 },
   { key: "bulgarian", name: "Bulgarian Squat", type: "unilateral", coeff: 0.85 },
   { key: "front", name: "Front Squat", type: "bilateral", coeff: 0.70 },
-  { key: "sidestep", name: "Side Step Squat", type: "unilateral", coeff: 0.85 },
+  { key: "sidestep", name: "Side Step", type: "unilateral", coeff: 0.85 },
   { key: "sumo", name: "Sumo Squat", type: "bilateral", coeff: 0.70 }
 ];
 
@@ -28,6 +28,17 @@ let lastState = "up";
 let lastTime = 0;
 
 let currentExerciseIndex = 0;
+
+/* unilateral state */
+let unilateralMode = false;
+let weakerSide = "left";
+let activeSide = "both";
+let sideStage = "first"; // first | second
+let sideResults = {
+  left: null,
+  right: null
+};
+let mirroredPlan = null;
 
 const el = id => document.getElementById(id);
 
@@ -140,6 +151,7 @@ function renderPentagon() {
     circle.setAttribute("cx", positions[i].x);
     circle.setAttribute("cy", positions[i].y);
     circle.setAttribute("r", 16);
+
     let cls = "pentagon-dot";
     if (i === currentExerciseIndex) cls += " active";
     circle.setAttribute("class", cls);
@@ -162,46 +174,56 @@ function renderPentagon() {
 function renderSelectedExercise() {
   const exercise = getCurrentExercise();
   el("selectedExerciseName").textContent = exercise.name;
-
-  if (exercise.type === "bilateral") {
-    el("selectedExerciseStatus").textContent = "Ready to train";
-  } else {
-    el("selectedExerciseStatus").innerHTML = `<span class="coming-soon">Unilateral flow comes in v2.3b</span>`;
-  }
+  el("selectedExerciseStatus").textContent =
+    exercise.type === "unilateral" ? "Weaker side first" : "Ready to train";
 
   el("selectedExerciseImage").innerHTML = getExerciseArt(exercise.name);
   const last = getLastSessionForExercise(exercise.key);
 
   if (!last) {
     el("lastSessionSummary").textContent = "No sessions yet.";
-  } else {
-    const myoPattern = last.myoSets && last.myoSets.length
-      ? last.myoSets.map(set => set.reps).join(", ")
-      : "none";
+    return;
+  }
 
+  if (exercise.type === "bilateral") {
+    const myoPattern = last.myoSets?.length ? last.myoSets.map(set => set.reps).join(", ") : "none";
     el("lastSessionSummary").innerHTML = `
       Anchor: ${last.anchorReps} reps<br>
       Myo sets: ${last.myoSets.length}<br>
       Myo reps: ${myoPattern}
     `;
+  } else {
+    el("lastSessionSummary").innerHTML = `
+      ${renderSideSummary("Left", last.left)}<br>
+      ${renderSideSummary("Right", last.right)}<br>
+      Difference: ${last.diffPct || "0.00"}%
+    `;
   }
+}
+
+function renderSideSummary(label, side) {
+  if (!side) return `${label}: no data`;
+  const myoPattern = side.myoSets?.length ? side.myoSets.map(set => set.reps).join(", ") : "none";
+  return `${label} — Anchor: ${side.anchorReps}, Myo: ${myoPattern}, TRDS: ${side.TRDS}`;
 }
 
 function startSelectedExercise() {
   const exercise = getCurrentExercise();
-
-  if (exercise.type !== "bilateral") {
-    alert("This exercise will be added in v2.3b.");
-    return;
-  }
-
   const profile = getProfile();
 
   el("sessionExerciseName").textContent = exercise.name;
-  el("sessionSupportText").textContent = "Bilateral session";
   el("sessionExerciseImage").innerHTML = getExerciseArt(exercise.name);
   el("sessionBodyweight").value = profile.bodyweight;
   el("sessionExternalWeight").value = 0;
+
+  unilateralMode = exercise.type === "unilateral";
+  el("weakerSideWrap").style.display = unilateralMode ? "grid" : "none";
+
+  if (unilateralMode) {
+    el("sessionSupportText").textContent = "Unilateral session";
+  } else {
+    el("sessionSupportText").textContent = "Bilateral session";
+  }
 
   resetSessionState();
   showScreen("screen-session");
@@ -218,33 +240,50 @@ function resetSessionState() {
   totalTime = 0;
   myoLog = [];
   currentPhase = "anchor";
+
   buffer = [];
   lastState = "up";
   lastTime = 0;
   clearInterval(tInt);
 
-  el("phase").innerText = "READY";
+  sideStage = "first";
+  mirroredPlan = null;
+  sideResults = { left: null, right: null };
+  activeSide = unilateralMode ? el("weakerSide").value : "both";
+  weakerSide = unilateralMode ? el("weakerSide").value : "both";
+
+  el("phase").innerText = unilateralMode ? `READY (${activeSide.toUpperCase()})` : "READY";
   el("reps").innerText = "0";
   el("time").innerText = "0";
   el("target").innerText = "-";
+  el("btnStartMyo").style.display = "none";
+}
+
+function resetSetReadout() {
+  reps = 0;
+  timer = 0;
+  buffer = [];
+  lastState = "up";
+  lastTime = 0;
+  el("reps").innerText = "0";
+  el("time").innerText = "0";
 }
 
 function startAnchorSet() {
   if (running) return;
 
-  reps = 0;
-  timer = 0;
+  resetSetReadout();
   running = true;
   currentPhase = "anchor";
 
-  buffer = [];
-  lastState = "up";
-  lastTime = 0;
+  const phaseLabel = unilateralMode
+    ? `ANCHOR (${activeSide.toUpperCase()})`
+    : "ANCHOR";
 
-  el("phase").innerText = "ANCHOR";
-  el("reps").innerText = "0";
-  el("time").innerText = "0";
-  el("target").innerText = "-";
+  el("phase").innerText = phaseLabel;
+  el("target").innerText = unilateralMode && sideStage === "second" && mirroredPlan
+    ? String(mirroredPlan.anchorReps)
+    : "-";
 
   tInt = setInterval(() => {
     timer++;
@@ -272,6 +311,14 @@ function saveSet() {
       return;
     }
 
+    // for mirrored second leg, enforce matched anchor reps
+    if (unilateralMode && sideStage === "second" && mirroredPlan) {
+      if (reps !== mirroredPlan.anchorReps) {
+        el("phase").innerText = `MATCH ${mirroredPlan.anchorReps} REPS`;
+        return;
+      }
+    }
+
     anchorReps = reps;
     anchorTime = timer;
 
@@ -281,17 +328,31 @@ function saveSet() {
     myoTarget = Math.max(1, Math.round(anchorReps * 0.2));
     currentPhase = "myo";
 
-    el("phase").innerText = "ANCHOR REST";
+    el("phase").innerText = unilateralMode
+      ? `ANCHOR REST (${activeSide.toUpperCase()})`
+      : "ANCHOR REST";
     el("target").innerText = String(myoTarget);
+    el("btnStartMyo").style.display = "none";
 
     setTimeout(() => {
-      el("phase").innerText = "READY FOR MYO";
+      el("phase").innerText = unilateralMode
+        ? `READY FOR MYO (${activeSide.toUpperCase()})`
+        : "READY FOR MYO";
+      el("btnStartMyo").style.display = "block";
     }, anchorTime * 1000);
 
   } else {
     if (reps <= 0) {
       el("phase").innerText = "NO REPS";
       return;
+    }
+
+    if (unilateralMode && sideStage === "second" && mirroredPlan) {
+      const expected = mirroredPlan.myoSets[myoLog.length]?.reps;
+      if (typeof expected === "number" && reps !== expected) {
+        el("phase").innerText = `MATCH ${expected} REPS`;
+        return;
+      }
     }
 
     const myoMLS = load * reps;
@@ -306,17 +367,21 @@ function saveSet() {
       TRDS: myoTRDS.toFixed(2)
     });
 
-    el("phase").innerText = "MYO REST";
+    el("phase").innerText = unilateralMode
+      ? `MYO REST (${activeSide.toUpperCase()})`
+      : "MYO REST";
+
+    el("btnStartMyo").style.display = "none";
 
     setTimeout(() => {
-      el("phase").innerText = "READY FOR NEXT MYO";
+      el("phase").innerText = unilateralMode
+        ? `READY FOR NEXT MYO (${activeSide.toUpperCase()})`
+        : "READY FOR NEXT MYO";
+      el("btnStartMyo").style.display = "block";
     }, 10000);
   }
 
-  reps = 0;
-  timer = 0;
-  el("reps").innerText = "0";
-  el("time").innerText = "0";
+  resetSetReadout();
 }
 
 function startMyo() {
@@ -327,18 +392,24 @@ function startMyo() {
 
   if (running) return;
 
-  reps = 0;
-  timer = 0;
+  resetSetReadout();
   running = true;
 
-  buffer = [];
-  lastState = "up";
-  lastTime = 0;
+  let target = myoTarget;
 
-  el("phase").innerText = "MYO";
-  el("reps").innerText = "0";
-  el("time").innerText = "0";
-  el("target").innerText = String(myoTarget);
+  if (unilateralMode && sideStage === "second" && mirroredPlan) {
+    const matchedSet = mirroredPlan.myoSets[myoLog.length];
+    if (!matchedSet) {
+      el("phase").innerText = "NO MORE MYO SETS";
+      return;
+    }
+    target = matchedSet.reps;
+  }
+
+  el("phase").innerText = unilateralMode
+    ? `MYO (${activeSide.toUpperCase()})`
+    : "MYO";
+  el("target").innerText = String(target);
 
   tInt = setInterval(() => {
     timer++;
@@ -359,35 +430,129 @@ function finishSession() {
   profile.bodyweight = profileBodyweight;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 
-  const load = externalWeight + (profileBodyweight * exercise.coeff);
-  const MLS = load * totalReps;
-  const TRDS = MLS / Math.max(1, totalTime);
-  const anchorTRDS = ((load * anchorReps) / Math.max(1, anchorTime)).toFixed(2);
+  if (!unilateralMode) {
+    const load = externalWeight + (profileBodyweight * exercise.coeff);
+    const MLS = load * totalReps;
+    const TRDS = MLS / Math.max(1, totalTime);
+    const anchorTRDS = ((load * anchorReps) / Math.max(1, anchorTime)).toFixed(2);
+
+    const session = {
+      exerciseKey: exercise.key,
+      exerciseName: exercise.name,
+      date: new Date().toLocaleString(),
+      bodyweight: profileBodyweight,
+      externalWeight,
+      anchorReps,
+      anchorTime,
+      anchorTRDS,
+      myoSets: myoLog,
+      totalReps,
+      totalTime,
+      MLS: MLS.toFixed(1),
+      TRDS: TRDS.toFixed(2)
+    };
+
+    saveHistorySession(session);
+    advanceRotationAndReturn();
+    return;
+  }
+
+  // unilateral save flow
+  const sideData = buildSideResult(profileBodyweight, externalWeight, exercise);
+  sideResults[activeSide] = sideData;
+
+  if (sideStage === "first") {
+    // store plan for mirrored second side
+    mirroredPlan = {
+      anchorReps: sideData.anchorReps,
+      myoSets: sideData.myoSets.map(set => ({ reps: set.reps }))
+    };
+
+    // switch side
+    activeSide = weakerSide === "left" ? "right" : "left";
+    sideStage = "second";
+
+    // reset session data for second side
+    reps = 0;
+    running = false;
+    timer = 0;
+    anchorReps = 0;
+    anchorTime = 0;
+    myoTarget = Math.max(1, Math.round(mirroredPlan.anchorReps * 0.2));
+    totalReps = 0;
+    totalTime = 0;
+    myoLog = [];
+    currentPhase = "anchor";
+    buffer = [];
+    lastState = "up";
+    lastTime = 0;
+    clearInterval(tInt);
+
+    el("phase").innerText = `SWITCH TO ${activeSide.toUpperCase()}`;
+    el("reps").innerText = "0";
+    el("time").innerText = "0";
+    el("target").innerText = String(mirroredPlan.anchorReps);
+    el("btnStartMyo").style.display = "none";
+
+    return;
+  }
+
+  // second side finished, build combined session
+  const left = sideResults.left;
+  const right = sideResults.right;
+
+  const totalCombinedTRDS = (
+    (parseFloat(left.TRDS) + parseFloat(right.TRDS)) / 2
+  ).toFixed(2);
+
+  const diffPct = percentDifference(parseFloat(left.TRDS), parseFloat(right.TRDS)).toFixed(2);
 
   const session = {
     exerciseKey: exercise.key,
     exerciseName: exercise.name,
     date: new Date().toLocaleString(),
     bodyweight: profileBodyweight,
-    externalWeight: externalWeight,
+    externalWeight,
+    weakerSide,
+    left,
+    right,
+    TRDS: totalCombinedTRDS,
+    diffPct
+  };
+
+  saveHistorySession(session);
+  advanceRotationAndReturn();
+}
+
+function buildSideResult(bodyweight, externalWeight, exercise) {
+  const load = externalWeight + (bodyweight * exercise.coeff);
+  const MLS = load * totalReps;
+  const TRDS = MLS / Math.max(1, totalTime);
+  const anchorTRDS = ((load * anchorReps) / Math.max(1, anchorTime)).toFixed(2);
+
+  return {
     anchorReps,
     anchorTime,
     anchorTRDS,
-    myoSets: myoLog,
+    myoSets: myoLog.slice(),
     totalReps,
     totalTime,
     MLS: MLS.toFixed(1),
     TRDS: TRDS.toFixed(2)
   };
+}
 
+function saveHistorySession(session) {
   const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
   history.unshift(session);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
 
+function advanceRotationAndReturn() {
   currentExerciseIndex = (currentExerciseIndex + 1) % EXERCISES.length;
   saveRotation();
-
   el("phase").innerText = "SAVED";
+  el("btnStartMyo").style.display = "none";
 
   setTimeout(() => {
     renderHome();
@@ -400,29 +565,78 @@ function showHistory() {
 
   if (!history.length) {
     list.innerHTML = `<div class="history-card">No history yet.</div>`;
-  } else {
-    list.innerHTML = history.map((h, idx) => {
-      const previousAvg = getAverageTRDSForExercise(h.exerciseKey, idx + 1).toFixed(2);
-      const myoText = h.myoSets && h.myoSets.length
-        ? h.myoSets.map((set, i) =>
-            `Myo ${i + 1}: ${set.reps} reps (${set.time}s) | TRDS: ${set.TRDS}`
-          ).join("<br>")
-        : "No Myo sets logged";
+    showScreen("screen-history");
+    return;
+  }
 
+  list.innerHTML = history.map((h, idx) => {
+    const previousAvg = getAverageTRDSForExercise(h.exerciseKey, idx + 1).toFixed(2);
+
+    if (h.left && h.right) {
       return `
         <div class="history-card">
           <div class="history-title">${h.exerciseName}</div>
           <div class="history-sub">${h.date}</div>
-          Anchor: ${h.anchorReps} reps (${h.anchorTime}s) | TRDS: ${h.anchorTRDS}<br><br>
-          ${myoText}<br><br>
-          Total Reps: ${h.totalReps}<br>
-          TRDS: ${h.TRDS} (${previousAvg})
+
+          <strong>Left</strong><br>
+          Anchor: ${h.left.anchorReps} reps (${h.left.anchorTime}s) | TRDS: ${h.left.anchorTRDS}<br>
+          ${renderMyoHistory(h.left.myoSets)}<br>
+
+          <strong>Right</strong><br>
+          Anchor: ${h.right.anchorReps} reps (${h.right.anchorTime}s) | TRDS: ${h.right.anchorTRDS}<br>
+          ${renderMyoHistory(h.right.myoSets)}<br>
+
+          <div class="symmetry-wrap">
+            <div class="symmetry-label">Balance</div>
+            ${renderSymmetryBar(parseFloat(h.left.TRDS), parseFloat(h.right.TRDS))}
+          </div>
+
+          Total TRDS: ${h.TRDS} (${previousAvg})<br>
+          Difference: ${h.diffPct}%
         </div>
       `;
-    }).join("");
-  }
+    }
+
+    return `
+      <div class="history-card">
+        <div class="history-title">${h.exerciseName}</div>
+        <div class="history-sub">${h.date}</div>
+        Anchor: ${h.anchorReps} reps (${h.anchorTime}s) | TRDS: ${h.anchorTRDS}<br><br>
+        ${renderMyoHistory(h.myoSets)}<br>
+        Total Reps: ${h.totalReps}<br>
+        TRDS: ${h.TRDS} (${previousAvg})
+      </div>
+    `;
+  }).join("");
 
   showScreen("screen-history");
+}
+
+function renderMyoHistory(myoSets) {
+  if (!myoSets || !myoSets.length) return "No Myo sets logged";
+  return myoSets.map((set, i) =>
+    `Myo ${i + 1}: ${set.reps} reps (${set.time}s) | TRDS: ${set.TRDS}`
+  ).join("<br>");
+}
+
+function renderSymmetryBar(leftVal, rightVal) {
+  const total = leftVal + rightVal || 1;
+  const leftPct = (leftVal / total) * 100;
+  const rightPct = 100 - leftPct;
+
+  return `
+    <div class="symmetry-bar">
+      <div class="symmetry-left" style="width:${leftPct}%"></div>
+      <div class="symmetry-right" style="width:${rightPct}%"></div>
+      <div class="symmetry-mid"></div>
+    </div>
+    <div class="symmetry-values">L ${leftVal.toFixed(2)} | R ${rightVal.toFixed(2)}</div>
+  `;
+}
+
+function percentDifference(a, b) {
+  const avg = (a + b) / 2 || 1;
+  return Math.abs(a - b) / avg * 100;
 }
 
 function clearHistory() {
@@ -483,8 +697,20 @@ function detect(e) {
       el("reps").innerText = String(reps);
       lastTime = now;
 
-      if (currentPhase === "myo" && reps >= myoTarget) {
-        stopSet();
+      if (currentPhase === "myo") {
+        const target = unilateralMode && sideStage === "second" && mirroredPlan
+          ? (mirroredPlan.myoSets[myoLog.length]?.reps ?? myoTarget)
+          : myoTarget;
+
+        if (reps >= target) {
+          stopSet();
+        }
+      }
+
+      if (currentPhase === "anchor" && unilateralMode && sideStage === "second" && mirroredPlan) {
+        if (reps >= mirroredPlan.anchorReps) {
+          stopSet();
+        }
       }
     }
     lastState = "up";
