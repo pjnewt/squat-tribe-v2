@@ -32,7 +32,7 @@ let currentExerciseIndex = 0;
 let unilateralMode = false;
 let weakerSide = "left";
 let activeSide = "both";
-let sideStage = "first"; // first | second
+let sideStage = "first";
 let sideResults = { left: null, right: null };
 let mirroredPlan = null;
 
@@ -221,7 +221,7 @@ function startSelectedExercise() {
   activeSide = weakerSide;
 
   el("sessionSupportText").textContent =
-    unilateralMode ? "Unilateral session" : "Bilateral session";
+    unilateralMode ? `Unilateral session (${activeSide.toUpperCase()} first)` : "Bilateral session";
 
   resetSessionState();
   showScreen("screen-session");
@@ -260,40 +260,34 @@ function resetSessionState() {
 function updateButtons(state) {
   el("btnStartAnchor").style.display = "none";
   el("btnStartMyo").style.display = "none";
-  el("btnStopSet").style.display = "inline-block";
-  el("btnSaveSet").style.display = "inline-block";
-  el("btnFinishSession").style.display = "inline-block";
+  el("btnStopSet").style.display = "none";
+  el("btnSaveSet").style.display = "none";
+  el("btnFinishSession").style.display = "block";
 
   if (state === "pre-anchor") {
     el("btnStartAnchor").style.display = "block";
-    el("btnStopSet").style.display = "none";
-    el("btnSaveSet").style.display = "none";
   }
 
   if (state === "anchor-running") {
-    el("btnStopSet").style.display = "inline-block";
-    el("btnSaveSet").style.display = "inline-block";
+    el("btnStopSet").style.display = "block";
+    el("btnSaveSet").style.display = "block";
   }
 
   if (state === "anchor-rest") {
-    el("btnStopSet").style.display = "none";
-    el("btnSaveSet").style.display = "none";
+    // finish only
   }
 
   if (state === "myo-ready") {
     el("btnStartMyo").style.display = "block";
-    el("btnStopSet").style.display = "none";
-    el("btnSaveSet").style.display = "none";
   }
 
   if (state === "myo-running") {
-    el("btnStopSet").style.display = "inline-block";
-    el("btnSaveSet").style.display = "inline-block";
+    el("btnStopSet").style.display = "block";
+    el("btnSaveSet").style.display = "block";
   }
 
   if (state === "myo-rest") {
-    el("btnStopSet").style.display = "none";
-    el("btnSaveSet").style.display = "none";
+    // finish only
   }
 }
 
@@ -309,6 +303,13 @@ function resetSetReadout() {
 
 function startAnchorSet() {
   if (running) return;
+
+  if (unilateralMode) {
+    weakerSide = el("weakerSide").value;
+    if (sideStage === "first") {
+      activeSide = weakerSide;
+    }
+  }
 
   resetSetReadout();
   running = true;
