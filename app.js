@@ -32,7 +32,7 @@ let currentExerciseIndex = 0;
 let unilateralMode = false;
 let weakerSide = "left";
 let activeSide = "both";
-let sideStage = "first";
+let sideStage = "first"; // first | second
 let sideResults = { left: null, right: null };
 let mirroredPlan = null;
 
@@ -124,6 +124,8 @@ function renderHome() {
 
 function renderPentagon() {
   const svgGroup = el("pentagonPoints");
+  if (!svgGroup) return;
+
   svgGroup.innerHTML = "";
 
   const positions = [
@@ -379,31 +381,44 @@ function saveSet() {
       updateButtons("myo-ready");
     }, anchorTime * 1000);
 
-  } else {
+    resetSetReadout();
+    return;
+  }
+
+  if (currentPhase === "myo") {
     if (reps <= 0) {
       el("phase").innerText = "NO REPS";
       return;
     }
 
+    let expectedTarget = myoTarget;
+
     if (unilateralMode && sideStage === "second" && mirroredPlan) {
       const expected = mirroredPlan.myoSets[myoLog.length]?.reps;
-      if (typeof expected === "number" && reps !== expected) {
-        el("phase").innerText = `MATCH ${expected} REPS`;
+      if (typeof expected === "number") {
+        expectedTarget = expected;
+      }
+
+      if (reps !== expectedTarget) {
+        el("phase").innerText = `MATCH ${expectedTarget} REPS`;
         return;
       }
     }
 
-    const myoMLS = load * reps;
-    const myoTRDS = myoMLS / Math.max(1, timer);
+    const savedReps = reps;
+    const savedTime = timer;
 
-    totalReps += reps;
-    totalTime += timer;
+    const myoMLS = load * savedReps;
+    const myoTRDS = myoMLS / Math.max(1, savedTime);
 
     myoLog.push({
-      reps,
-      time: timer,
+      reps: savedReps,
+      time: savedTime,
       TRDS: myoTRDS.toFixed(2)
     });
+
+    totalReps += savedReps;
+    totalTime += savedTime;
 
     el("phase").innerText = unilateralMode
       ? `MYO REST (${activeSide.toUpperCase()})`
@@ -417,9 +432,9 @@ function saveSet() {
         : "READY FOR NEXT MYO";
       updateButtons("myo-ready");
     }, 10000);
-  }
 
-  resetSetReadout();
+    resetSetReadout();
+  }
 }
 
 function startMyo() {
