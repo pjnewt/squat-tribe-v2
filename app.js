@@ -281,14 +281,19 @@ function saveSet() {
     myoTarget = Math.max(1, Math.round(anchorReps * 0.2));
     currentPhase = "myo";
 
-    el("phase").innerText = "REST";
+    el("phase").innerText = "ANCHOR REST";
+    el("target").innerText = String(myoTarget);
 
     setTimeout(() => {
-      el("phase").innerText = "MYO TARGET";
-      el("target").innerText = String(myoTarget);
+      el("phase").innerText = "READY FOR MYO";
     }, anchorTime * 1000);
 
   } else {
+    if (reps <= 0) {
+      el("phase").innerText = "NO REPS";
+      return;
+    }
+
     const myoMLS = load * reps;
     const myoTRDS = myoMLS / Math.max(1, timer);
 
@@ -307,6 +312,11 @@ function saveSet() {
       el("phase").innerText = "READY FOR NEXT MYO";
     }, 10000);
   }
+
+  reps = 0;
+  timer = 0;
+  el("reps").innerText = "0";
+  el("time").innerText = "0";
 }
 
 function startMyo() {
@@ -345,7 +355,6 @@ function finishSession() {
   const externalWeight = parseFloat(el("sessionExternalWeight").value || "0");
   const exercise = getCurrentExercise();
 
-  // persist profile bodyweight if changed on session screen
   const profile = getProfile();
   profile.bodyweight = profileBodyweight;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
@@ -375,7 +384,6 @@ function finishSession() {
   history.unshift(session);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 
-  // advance to next exercise in order
   currentExerciseIndex = (currentExerciseIndex + 1) % EXERCISES.length;
   saveRotation();
 
