@@ -51,6 +51,10 @@ function stopSet() {
 }
 
 function saveSet() {
+  const bodyweight = parseFloat(localStorage.getItem('bw') || 70);
+  const coeff = 0.7;
+  const load = bodyweight * coeff;
+
   if (currentPhase === "anchor") {
     if (reps <= 0) {
       el('phase').innerText = "NO REPS";
@@ -63,9 +67,13 @@ function saveSet() {
     totalReps += reps;
     totalTime += timer;
 
+    const anchorMLS = load * reps;
+    const anchorTRDS = anchorMLS / Math.max(1, timer);
+
     myoTarget = Math.max(1, Math.round(anchorReps * 0.2));
     currentPhase = "myo";
 
+    // Store anchor as a summary field later in finishSession
     el('phase').innerText = "REST";
 
     setTimeout(() => {
@@ -74,12 +82,16 @@ function saveSet() {
     }, anchorTime * 1000);
 
   } else {
+    const myoMLS = load * reps;
+    const myoTRDS = myoMLS / Math.max(1, timer);
+
     totalReps += reps;
     totalTime += timer;
 
     myoLog.push({
       reps: reps,
-      time: timer
+      time: timer,
+      TRDS: myoTRDS.toFixed(2)
     });
 
     el('phase').innerText = "MYO REST";
@@ -127,10 +139,13 @@ function finishSession() {
   const MLS = load * totalReps;
   const TRDS = MLS / Math.max(1, totalTime);
 
+  const anchorTRDS = ((load * anchorReps) / Math.max(1, anchorTime)).toFixed(2);
+
   const session = {
     date: new Date().toLocaleString(),
     anchorReps: anchorReps,
     anchorTime: anchorTime,
+    anchorTRDS: anchorTRDS,
     myoSets: myoLog,
     totalReps: totalReps,
     totalTime: totalTime,
@@ -156,12 +171,13 @@ function showHistory() {
   const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 
   let html = "";
+
   history.forEach(h => {
     let myoText = "";
 
     if (h.myoSets && h.myoSets.length > 0) {
       h.myoSets.forEach((set, i) => {
-        myoText += `Myo ${i + 1}: ${set.reps} reps (${set.time}s)<br>`;
+        myoText += `Myo ${i + 1}: ${set.reps} reps (${set.time}s) | TRDS: ${set.TRDS}<br>`;
       });
     } else {
       myoText = "No Myo sets logged<br>";
@@ -169,10 +185,10 @@ function showHistory() {
 
     html += `<div class="card">
       ${h.date}<br><br>
-      Anchor: ${h.anchorReps} reps (${h.anchorTime}s)<br>
+      Anchor: ${h.anchorReps} reps (${h.anchorTime}s) | TRDS: ${h.anchorTRDS}<br><br>
       ${myoText}<br>
       Total Reps: ${h.totalReps}<br>
-      TRDS: ${h.TRDS}
+      Total TRDS: ${h.TRDS}
     </div>`;
   });
 
