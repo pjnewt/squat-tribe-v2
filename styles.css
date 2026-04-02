@@ -287,3 +287,45 @@ body {
   color: var(--danger);
   font-size: 13px;
 }
+
+.symmetry-wrap {
+  margin: 10px 0;
+}
+
+.symmetry-label {
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.symmetry-bar {
+  position: relative;
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #222;
+  margin-bottom: 6px;
+}
+
+.symmetry-left {
+  background: #FFD700;
+}
+
+.symmetry-right {
+  background: #3A3A3C;
+}
+
+.symmetry-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #F5F5F7;
+  transform: translateX(-50%);
+}
+
+.symmetry-values {
+  font-size: 13px;
+  color: var(--muted);
+}
