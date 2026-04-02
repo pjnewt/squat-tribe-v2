@@ -1,46 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Squat Tribe</title>
-<link rel="stylesheet" href="styles.css">
-<link rel="manifest" href="manifest.json">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Squat Tribe</title>
+  <meta name="theme-color" content="#0A0A0A" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>Squat Tribe</h1>
+      <p>Adaptive squat training protocol</p>
+    </header>
 
-<h1>Squat Tribe</h1>
+    <main>
+      <section id="screen-home" class="screen active">
+        <div class="top-actions">
+          <button class="pill secondary" id="btnInfo">Info</button>
+          <button class="pill secondary" id="btnProfile">Profile</button>
+          <button class="pill secondary" id="btnHistory">History</button>
+        </div>
 
-<div id="home">
-  <button onclick="startSession()">Start Session</button>
-  <button onclick="showHistory()">History</button>
-</div>
+        <div class="card pentagon-card">
+          <div class="pentagon-wrap">
+            <svg viewBox="0 0 320 320" class="pentagon-svg" aria-label="Exercise pentagon">
+              <polygon points="160,35 275,118 230,255 90,255 45,118" class="pentagon-outline"></polygon>
+              <g id="pentagonPoints"></g>
+              <text x="160" y="145" text-anchor="middle" class="pentagon-center-label">Avg TRDS</text>
+              <text x="160" y="178" text-anchor="middle" class="pentagon-center-value" id="avgTrdsValue">0.00</text>
+            </svg>
+          </div>
+        </div>
 
-<div id="session" style="display:none;">
-  <h3 id="phase">READY</h3>
+        <div class="card selected-card">
+          <div class="exercise-hero">
+            <div class="exercise-figure" id="selectedExerciseImage"></div>
+            <div class="exercise-meta">
+              <h2 id="selectedExerciseName">Back Squat</h2>
+              <p id="selectedExerciseStatus" class="muted"></p>
+            </div>
+          </div>
 
-  Reps: <span id="reps">0</span><br>
-  Time: <span id="time">0</span><br>
-  Target: <span id="target">-</span><br><br>
+          <div class="summary-block">
+            <div class="summary-title">Last session</div>
+            <div id="lastSessionSummary" class="summary-content">No sessions yet.</div>
+          </div>
 
-  <button onclick="stopSet()">Stop</button>
-  <button onclick="saveSet()">Save Set</button>
-  <button onclick="startMyo()">Start Myo</button>
-  <button onclick="finishSession()">Finish Session</button>
-</div>
+          <button class="pill primary" id="btnStartExercise">Start Exercise</button>
+        </div>
+      </section>
 
-<div id="history" style="display:none;">
-  <h3>History</h3>
-  <div id="historyList"></div>
-  <button onclick="clearHistory()">Clear History</button>
-  <button onclick="goHome()">Back</button>
-</div>
+      <section id="screen-info" class="screen">
+        <div class="card text-card">
+          <button class="back-link" data-back="home">← Back</button>
+          <h2>Info</h2>
+          <div class="info-copy">
+            <p>Squat Tribe is a structured, data-driven training app designed to help you build lower-body strength using five squat variations. It guides each session automatically, tracks performance, and adapts to fatigue.</p>
 
-<script src="app.js"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
-}
-</script>
+            <p><strong>Squat Tribe uses a Pentagon Protocol which consists of:</strong><br>
+            1. Back Squat<br>
+            2. Bulgarian Split Squat<br>
+            3. Front Squat<br>
+            4. Side Step Squat<br>
+            5. Sumo Squat</p>
 
+            <p><strong>Workout Structure:</strong><br>
+            An Anchor Set (one high-repetition set to fatigue) is performed, followed by Myo-Rep Clusters (short sets with short rests). The Myo-set rep target is based on 20% of the Anchor-set reps.</p>
+
+            <p><strong>Unilateral Logic:</strong><br>
+            Bulgarian Squats and Side Steps start with the weaker leg. The opposite leg matches reps and sets exactly. Only the time to complete the work differs between sides.</p>
+
+            <p><strong>Performance Metrics:</strong><br>
+            Body weight load for bilateral squats is calculated as 70% of body weight. For unilateral exercises it will be 85% in v2.3b. This load plus any external weight is used as the Total Load (TL).<br>
+            MLS = TL × Reps<br>
+            TRDS = MLS ÷ time</p>
+
+            <p><strong>Summary:</strong><br>
+            Squat Tribe helps you train hard, track performance, and improve strength while maintaining balance and reducing injury risk.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-profile" class="screen">
+        <div class="card">
+          <button class="back-link" data-back="home">← Back</button>
+          <h2>Profile</h2>
+
+          <label class="field">
+            <span>Body Weight (kg)</span>
+            <input id="profileBodyweight" type="number" min="20" max="300" step="0.1" />
+          </label>
+
+          <label class="field">
+            <span>Sensitivity</span>
+            <select id="profileSensitivity">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+
+          <button class="pill primary" id="btnSaveProfile">Save Profile</button>
+        </div>
+      </section>
+
+      <section id="screen-history" class="screen">
+        <div class="card">
+          <button class="back-link" data-back="home">← Back</button>
+          <h2>History</h2>
+          <div id="historyList" class="history-list"></div>
+          <button class="pill secondary" id="btnClearHistory">Clear History</button>
+        </div>
+      </section>
+
+      <section id="screen-session" class="screen">
+        <div class="card">
+          <button class="back-link" data-back="home">← Home</button>
+
+          <div class="session-head">
+            <h2 id="sessionExerciseName">Back Squat</h2>
+            <div class="muted" id="sessionSupportText">Bilateral session</div>
+          </div>
+
+          <div class="exercise-figure large" id="sessionExerciseImage"></div>
+
+          <div class="field">
+            <span>Body Weight (kg)</span>
+            <input id="sessionBodyweight" type="number" min="20" max="300" step="0.1" />
+          </div>
+
+          <div class="field">
+            <span>External Weight (kg)</span>
+            <input id="sessionExternalWeight" type="number" min="0" max="300" step="0.5" value="0" />
+          </div>
+
+          <div class="phase-box">
+            <div class="phase-label" id="phase">READY</div>
+            <div class="metric-row">
+              <div class="metric">
+                <div class="metric-name">Reps</div>
+                <div class="metric-value" id="reps">0</div>
+              </div>
+              <div class="metric">
+                <div class="metric-name">Time</div>
+                <div class="metric-value" id="time">0</div>
+              </div>
+              <div class="metric">
+                <div class="metric-name">Target</div>
+                <div class="metric-value" id="target">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="button-stack">
+            <button class="pill primary" id="btnStartAnchor">Start Anchor Set</button>
+            <button class="pill secondary" id="btnStopSet">Stop</button>
+            <button class="pill secondary" id="btnSaveSet">Save Set</button>
+            <button class="pill secondary" id="btnStartMyo">Start Myo</button>
+            <button class="pill primary" id="btnFinishSession">Finish Session</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
