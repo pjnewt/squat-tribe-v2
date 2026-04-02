@@ -1,6 +1,6 @@
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open("squat-tribe-v23a").then(cache => {
+    caches.open("squat-tribe-v24").then(cache => {
       return cache.addAll([
         "./",
         "./index.html",
