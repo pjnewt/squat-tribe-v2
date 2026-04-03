@@ -36,6 +36,9 @@ let sideStage = "first";
 let sideResults = { left: null, right: null };
 let mirroredPlan = null;
 
+let anchorRestTimeout = null;
+let myoRestTimeout = null;
+
 const el = id => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", init);
@@ -227,7 +230,20 @@ function startSelectedExercise() {
   showScreen("screen-session");
 }
 
+function clearPhaseTimeouts() {
+  if (anchorRestTimeout) {
+    clearTimeout(anchorRestTimeout);
+    anchorRestTimeout = null;
+  }
+  if (myoRestTimeout) {
+    clearTimeout(myoRestTimeout);
+    myoRestTimeout = null;
+  }
+}
+
 function resetSessionState() {
+  clearPhaseTimeouts();
+
   reps = 0;
   running = false;
   timer = 0;
@@ -338,6 +354,13 @@ function stopSet() {
   running = false;
   clearInterval(tInt);
   window.removeEventListener("devicemotion", detect);
+
+  if (currentPhase === "anchor" || currentPhase === "myo") {
+    el("btnStopSet").style.display = "block";
+    el("btnSaveSet").style.display = "block";
+    el("btnStartAnchor").style.display = "none";
+    el("btnStartMyo").style.display = "none";
+  }
 }
 
 function saveSet() {
@@ -374,12 +397,14 @@ function saveSet() {
     el("target").innerText = String(myoTarget);
 
     updateButtons("anchor-rest");
+    clearPhaseTimeouts();
 
-    setTimeout(() => {
+    anchorRestTimeout = setTimeout(() => {
       el("phase").innerText = unilateralMode
         ? `READY FOR MYO (${activeSide.toUpperCase()})`
         : "READY FOR MYO";
       updateButtons("myo-ready");
+      anchorRestTimeout = null;
     }, anchorTime * 1000);
 
     resetSetReadout();
@@ -426,12 +451,14 @@ function saveSet() {
       : "MYO REST";
 
     updateButtons("myo-rest");
+    clearPhaseTimeouts();
 
-    setTimeout(() => {
+    myoRestTimeout = setTimeout(() => {
       el("phase").innerText = unilateralMode
         ? `READY FOR NEXT MYO (${activeSide.toUpperCase()})`
         : "READY FOR NEXT MYO";
       updateButtons("myo-ready");
+      myoRestTimeout = null;
     }, 10000);
 
     resetSetReadout();
@@ -517,6 +544,8 @@ function finishSession() {
   sideResults[activeSide] = sideData;
 
   if (sideStage === "first") {
+    clearPhaseTimeouts();
+
     mirroredPlan = {
       anchorReps: sideData.anchorReps,
       myoSets: sideData.myoSets.map(set => ({ reps: set.reps }))
